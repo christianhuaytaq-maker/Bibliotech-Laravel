@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BookController;
@@ -12,8 +13,13 @@ use App\Http\Controllers\TaxonomyController;
 
 // Ruta raíz
 Route::get('/', function () {
-    if (auth()->check()) {
-        return auth()->user()->isStaff() ? redirect()->route('admin.dashboard') : redirect()->route('catalogo');
+    if (Auth::check()) {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        return $user->isStaff()
+            ? redirect()->route('admin.dashboard')
+            : redirect()->route('catalogo');
     }
     return redirect()->route('login');
 });
@@ -40,6 +46,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/reportes', [AdminController::class, 'reportes'])->name('admin.reportes');
     Route::get('/configuracion', [AdminController::class, 'configuracion'])->name('admin.configuracion');
+    Route::post('/configuracion', [AdminController::class, 'guardarConfiguracion'])->name('admin.configuracion.guardar');
     Route::get('/bitacora', [AdminController::class, 'bitacora'])->name('admin.bitacora');
     Route::get('/stock', [AdminController::class, 'stock'])->name('admin.stock');
 

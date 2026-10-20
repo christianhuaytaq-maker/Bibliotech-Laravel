@@ -7,6 +7,9 @@ use App\Models\Prestamo;
 use App\Models\Reserva;
 use App\Models\Multa;
 use App\Models\User;
+use App\Models\Bitacora;
+use App\Models\Configuracion;
+use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
@@ -47,8 +50,66 @@ class AdminController extends Controller
         return view('admin.stock', compact('libros', 'stats'));
     }
 
-    // 3. Vistas simples (por ahora)
-    public function reportes() { return view('admin.reports'); }
-    public function configuracion() { return view('admin.settings'); }
-    public function bitacora() { return view('admin.audit'); }
+       // 3. Reportes
+    public function reportes()
+    {
+        $masPrestados = Prestamo::with('libro')
+            ->selectRaw('libro_id, COUNT(*) as total')
+            ->groupBy('libro_id')
+            ->orderByDesc('total')
+            ->limit(10)
+            ->get();
+
+        $resumen = [
+            'activos'   => Prestamo::whereNull('fecha_devolucion_real')->count(),
+            'vencidos'  => Prestamo::whereNull('fecha_devolucion_real')
+                                   ->where('fecha_devolucion_esperada', '<', now())->count(),
+            'multas'    => Multa::where('estado', 'pendiente')->sum('monto'),
+            'reservas'  => Reserva::where('estado', 'confirmada')->count(),
+        ];
+
+        return view('admin.reports', compact('masPrestados', 'resumen'));
+    }
+
+    // 4. Configuración
+    public function configuracion()
+    {
+        $config = [
+            'dias_prestamo'    => Configuracion::obtener('dias_prestamo', 7),
+            'multa_por_dia'    => Configuracion::obtener('multa_por_dia', 1),
+            'max_renovaciones' => Configuracion::obtener('max_renovaciones', 2),
+        ];
+
+        return view('admin.settings', compact('config'));
+    }
+
+    public function guardarConfiguracion(Request $request)
+    {
+        $datos = $request->validate([
+            'dias_prestamo'    => 'required|integer|min:1|max:90',
+            'multa_por_dia'    => 'required|numeric|min:0',
+            'max_renovaciones' => 'required|integer|min:0|max:10',
+        ]);
+
+        foreach ($datos as $clave => $valor) {
+            Configuracion::guardar($clave, $valor);
+        }
+
+        Bitacora::registrar('Configuración', 'Se actualizaron los parámetros generales');
+
+        return back()->with('ok', 'Cambios guardados.');
+    }
+
+    // 5. Bitácora
+    public function bitacora(Request $request)
+    {
+        $registros = Bitacora::with('usuario')
+            ->when($request->filled('desde'), fn ($q) => $q->whereDate('created_at', '>=', $request->desde))
+            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('created_at', '<=', $request->hasta))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('admin.audit', compact('registros'));
+    }
 }
