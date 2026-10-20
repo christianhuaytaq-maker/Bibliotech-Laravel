@@ -87,4 +87,12 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::get('/autores', [TaxonomyController::class, 'autores'])->name('admin.autores');
     Route::post('/autores', [TaxonomyController::class, 'autoresStore'])->name('admin.autores.store');
     Route::delete('/autores/{id}', [TaxonomyController::class, 'autoresDestroy'])->name('admin.autores.destroy');
-});
+
+Route::get('/categorias/{id}/editar', [TaxonomyController::class, 'categoriasEdit'])->name('admin.categorias.edit');
+Route::put('/categorias/{id}', [TaxonomyController::class, 'categoriasUpdate'])->name('admin.categorias.update');
+
+Route::get('/autores/{id}/editar', [TaxonomyController::class, 'autoresEdit'])->name('admin.autores.edit');
+Route::put('/autores/{id}', [TaxonomyController::class, 'autoresUpdate'])->name('admin.autores.update');
+
+
+    });

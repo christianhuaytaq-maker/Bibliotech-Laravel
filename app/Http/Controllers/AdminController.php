@@ -34,12 +34,11 @@ class AdminController extends Controller
         return view('admin.dashboard', compact('stats', 'lowStock', 'overdue'));
     }
 
-    // 2. Control de Stock (Con estadísticas para el diseño profesional)
+    // 2. Control de Stock
     public function stock()
     {
         $libros = Libro::where('activo', 1)->orderBy('titulo')->get();
 
-        // Calculamos las estadísticas para las tarjetas de arriba
         $stats = [
             'total_libros' => $libros->count(),
             'total_ejemplares' => $libros->sum('stock_total'),
@@ -50,22 +49,28 @@ class AdminController extends Controller
         return view('admin.stock', compact('libros', 'stats'));
     }
 
-       // 3. Reportes
+    // 3. Reportes
     public function reportes()
     {
+        // Usa la relación libro(), así no depende del nombre de la columna
         $masPrestados = Prestamo::with('libro')
-            ->selectRaw('libro_id, COUNT(*) as total')
-            ->groupBy('libro_id')
-            ->orderByDesc('total')
-            ->limit(10)
-            ->get();
+            ->get()
+            ->filter(fn ($p) => $p->libro !== null)
+            ->groupBy(fn ($p) => $p->libro->id)
+            ->map(fn ($grupo) => (object) [
+                'libro' => $grupo->first()->libro,
+                'total' => $grupo->count(),
+            ])
+            ->sortByDesc('total')
+            ->take(10)
+            ->values();
 
         $resumen = [
-            'activos'   => Prestamo::whereNull('fecha_devolucion_real')->count(),
-            'vencidos'  => Prestamo::whereNull('fecha_devolucion_real')
-                                   ->where('fecha_devolucion_esperada', '<', now())->count(),
-            'multas'    => Multa::where('estado', 'pendiente')->sum('monto'),
-            'reservas'  => Reserva::where('estado', 'confirmada')->count(),
+            'activos'  => Prestamo::whereNull('fecha_devolucion_real')->count(),
+            'vencidos' => Prestamo::whereNull('fecha_devolucion_real')
+                                  ->where('fecha_devolucion_esperada', '<', now())->count(),
+            'multas'   => Multa::where('estado', 'pendiente')->sum('monto'),
+            'reservas' => Reserva::where('estado', 'confirmada')->count(),
         ];
 
         return view('admin.reports', compact('masPrestados', 'resumen'));
